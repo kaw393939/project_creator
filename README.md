@@ -21,7 +21,7 @@ The generator sets up a comprehensive development environment including:
 
 1. Download the script:
    ```bash
-   curl -o generate_python_project.sh https://raw.githubusercontent.com/yourusername/python-project-generator/main/generate_python_project.sh
+   curl -o generate_python_project.sh [https://raw.githubusercontent.com/yourusername/python-project-generator/main/generate_python_project.sh](https://raw.githubusercontent.com/kaw393939/project_creator/refs/heads/main/project_creator.sh)
    ```
 
 2. Make it executable:
