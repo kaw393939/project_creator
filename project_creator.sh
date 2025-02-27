@@ -63,7 +63,6 @@ check_command() {
 }
 
 # Check essential commands
-check_command git || exit 1
 check_command python3 || exit 1
 
 # Prompt for project details
@@ -78,8 +77,8 @@ check_existing_project
 PACKAGE_NAME=$(prompt_with_default "Package name (for imports)" "${PROJECT_NAME//-/_}")
 VERSION=$(prompt_with_default "Initial version" "0.1.0")
 DESCRIPTION=$(prompt_with_default "Project description" "A Python project")
-AUTHOR=$(prompt_with_default "Author name" "$(git config --get user.name 2>/dev/null || echo 'Your Name')")
-EMAIL=$(prompt_with_default "Author email" "$(git config --get user.email 2>/dev/null || echo 'email@example.com')")
+AUTHOR=$(prompt_with_default "Author name" "Your Name")
+EMAIL=$(prompt_with_default "Author email" "email@example.com")
 
 # Additional features
 USE_PYTEST=$(prompt_yes_no "Use pytest for testing" "Y")
@@ -114,10 +113,6 @@ echo ""
 # Create project directory
 mkdir -p "$PROJECT_NAME"
 cd "$PROJECT_NAME"
-
-# Initialize git repository
-git init -b main
-echo "Git repository initialized"
 
 # Create .gitignore
 cat > .gitignore << 'EOF'
@@ -166,9 +161,6 @@ htmlcov/
 .DS_Store
 EOF
 
-git add .gitignore
-git commit -m "Initial commit: Add .gitignore"
-
 # Create virtual environment
 python3 -m venv venv
 echo "Virtual environment created"
@@ -213,7 +205,7 @@ textColor = "#262730"
 font = "sans serif"
 EOF
 
-  # Use cat with '-' to allow variable substitution in heredocs
+  # Create main Streamlit module
   cat > src/$PACKAGE_NAME/main.py << EOF
 """Streamlit application module."""
 import streamlit as st
@@ -691,14 +683,6 @@ EOF
   chmod +x run.py
 fi
 
-git add src/
-if [[ "$CREATE_STREAMLIT" == "Y" ]]; then
-  git add app.py .streamlit/ run_streamlit.sh
-elif [[ -f "run.py" ]]; then
-  git add run.py
-fi
-git commit -m "Add main application module"
-
 # Create tests directory
 if [[ "$USE_PYTEST" == "Y" ]]; then
   mkdir -p tests
@@ -964,9 +948,6 @@ exclude_lines =
 omit =
     tests/*
 EOF
-
-  git add tests/ pytest.ini .coveragerc
-  git commit -m "Add comprehensive tests with unit and integration testing"
 fi
 
 # Create README.md first (needed by setup.py)
@@ -1171,28 +1152,12 @@ flake8>=6.1.0
 EOF
 fi
 
-git add README.md setup.py requirements*.txt
-git commit -m "Add README, package setup and requirements"
-
-# Install development dependencies using run_in_venv
-run_in_venv pip install -r requirements-dev.txt
-echo "Development dependencies installed in virtual environment"
-
-# Now install the package in development mode
-run_in_venv pip install -e .
-echo "Package installed in development mode in virtual environment"
-
 # Add a README file for the project summary
 cat >> README.md << EOF
 
 ## Project Summary
 
 This project was created with the Python Project Generator script.
-Run the following command to see the project summary:
-
-\`\`\`
-./project_summary.sh
-\`\`\`
 EOF
 
 # Create Docker configuration
@@ -1275,9 +1240,6 @@ htmlcov/
 # Project specific
 Dockerfile
 EOF
-
-  git add Dockerfile .dockerignore
-  git commit -m "Add Docker configuration"
 fi
 
 # Create convenience scripts
@@ -1309,7 +1271,6 @@ fi
 python -m $PACKAGE_NAME.main "\$@"
 EOF
   chmod +x run_cli.sh
-  git add run_cli.sh
 elif [[ ! "$CREATE_STREAMLIT" == "Y" ]]; then
   cat > run_app.sh << EOF
 #!/bin/bash
@@ -1324,11 +1285,7 @@ fi
 python run.py
 EOF
   chmod +x run_app.sh
-  git add run_app.sh
 fi
-
-git add run_tests.sh
-git commit -m "Add convenience scripts"
 
 # Setup code quality tools
 if [[ "$USE_FLAKE8" == "Y" ]]; then
@@ -1338,7 +1295,6 @@ max-line-length = 88
 extend-ignore = E203
 exclude = .git,__pycache__,build,dist
 EOF
-  git add .flake8
 fi
 
 if [[ "$USE_BLACK" == "Y" ]]; then
@@ -1360,85 +1316,42 @@ exclude = '''
   | dist
 )/'''
 EOF
-
-  git add pyproject.toml
-  git commit -m "Add code quality tool configurations"
 fi
 
-# Add pre-commit hook for code quality
-if [[ "$USE_BLACK" == "Y" || "$USE_FLAKE8" == "Y" ]]; then
-  mkdir -p .git/hooks
-  
-  cat > .git/hooks/pre-commit << 'EOF'
-#!/bin/bash
+# Install development dependencies using run_in_venv
+run_in_venv pip install -r requirements-dev.txt
+echo "Development dependencies installed in virtual environment"
 
-# Get staged Python files
-STAGED_PY_FILES=$(git diff --cached --name-only --diff-filter=AM | grep '\.py$')
-
-if [ -z "$STAGED_PY_FILES" ]; then
-    # No Python files to check, exit cleanly
-    exit 0
-fi
-
-echo "Running pre-commit checks on staged Python files..."
-EOF
-
-  if [[ "$USE_BLACK" == "Y" ]]; then
-    cat >> .git/hooks/pre-commit << 'EOF'
-# Run Black
-echo "Running Black..."
-for file in $STAGED_PY_FILES; do
-    black --check "$file"
-    if [ $? -ne 0 ]; then
-        echo "Black found formatting issues in $file"
-        echo "Run 'black $file' to fix"
-        exit 1
-    fi
-done
-EOF
-  fi
-
-  if [[ "$USE_FLAKE8" == "Y" ]]; then
-    cat >> .git/hooks/pre-commit << 'EOF'
-# Run Flake8
-echo "Running Flake8..."
-for file in $STAGED_PY_FILES; do
-    flake8 "$file"
-    if [ $? -ne 0 ]; then
-        echo "Flake8 found issues in $file"
-        exit 1
-    fi
-done
-EOF
-  fi
-
-  cat >> .git/hooks/pre-commit << 'EOF'
-echo "All checks passed!"
-exit 0
-EOF
-
-  chmod +x .git/hooks/pre-commit
-  echo "Pre-commit hook installed for code quality checks"
-fi
+# Now install the package in development mode
+run_in_venv pip install -e .
+echo "Package installed in development mode in virtual environment"
 
 # Store the original directory and project info right at the start
 ORIGINAL_DIR=$(pwd)
-PROJECT_PATH="$ORIGINAL_DIR/$PROJECT_NAME"
+PROJECT_PATH="$ORIGINAL_DIR"
 
-# Save variables for final message
-FINAL_VARS_FILE=$(mktemp)
-{
-  echo "PROJECT_NAME=\"$PROJECT_NAME\""
-  echo "PROJECT_PATH=\"$PROJECT_PATH\""
-  echo "USE_PYTEST=\"$USE_PYTEST\""
-  echo "CREATE_CLI=\"$CREATE_CLI\""
-  echo "CREATE_STREAMLIT=\"$CREATE_STREAMLIT\""
-  echo "USE_DOCKER=\"$USE_DOCKER\""
-  echo "USE_BLACK=\"$USE_BLACK\""
-  echo "USE_FLAKE8=\"$USE_FLAKE8\""
-} > "$FINAL_VARS_FILE"
-# Delete the display_final_message function since we're using the trap approach
+# Define the write_final_message function
+write_final_message() {
+  echo ""
+  echo "======================================================"
+  echo "  Project '$PROJECT_NAME' created successfully!"
+  echo "======================================================"
+  echo ""
+  echo "Project location: $PROJECT_PATH"
+  echo ""
+  echo "Features enabled:"
+  [[ "$USE_PYTEST" == "Y" ]] && echo "  - Testing with pytest"
+  [[ "$CREATE_CLI" == "Y" ]] && echo "  - Command-line interface"
+  [[ "$CREATE_STREAMLIT" == "Y" ]] && echo "  - Streamlit application"
+  [[ "$USE_DOCKER" == "Y" ]] && echo "  - Docker configuration"
+  [[ "$USE_BLACK" == "Y" ]] && echo "  - Code formatting with Black"
+  [[ "$USE_FLAKE8" == "Y" ]] && echo "  - Code linting with Flake8"
+  echo ""
+  echo "Next steps:"
+  echo "  cd $PROJECT_NAME"
+  echo "  source venv/bin/activate"
+  echo ""
+}
 
-
-# Write final messages after all project setup is done
+# Write final message at the end
 write_final_message
